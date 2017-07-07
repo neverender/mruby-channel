@@ -22,20 +22,20 @@
 #include "../chan_src/channel.cpp"
 
 
-struct Routine {
+struct Thread {
   std::string script;
   Variant error;
   std::thread* th;
   std::atomic<bool> is_running;
   std::atomic<bool> got_error;
 
-  Routine(const char* z) : script(z)
+  Thread(const char* z) : script(z)
   {
     this->th = nullptr;
     this->is_running = false;
     this->got_error = false;
   }
-  ~Routine()
+  ~Thread()
   {
     if (this->th) {
       this->th->join();
@@ -55,36 +55,35 @@ struct Routine {
 };
 
 static void
-routine_free(mrb_state* mrb, void* p)
+Thread_free(mrb_state* mrb, void* p)
 {
-  Routine* r = static_cast<Routine*>(p);
-  r->~Routine();
+  Thread* r = static_cast<Thread*>(p);
+  r->~Thread();
   mrb_free(mrb, p);
 }
 
-static mrb_data_type routine_t = {"Routine", routine_free};
+static mrb_data_type Thread_t = {"Thread", Thread_free};
 
 static mrb_value
-routine_init(mrb_state* mrb, mrb_value self)
+Thread_init(mrb_state* mrb, mrb_value self)
 {
   char* script;
 
   mrb_get_args(mrb, "z", &script);
 
-  struct RClass* cls = mrb_class_get(mrb, "Routine");
-  Routine* r = (Routine*)mrb_malloc(mrb, sizeof(Routine));
-  r = new (r) Routine(script);
+  Thread* r = (Thread*)mrb_malloc(mrb, sizeof(Thread));
+  r = new (r) Thread(script);
 
-  DATA_TYPE(self) = &routine_t;
+  DATA_TYPE(self) = &Thread_t;
   DATA_PTR(self) = r;
 
   return self;
 }
 
 static mrb_value
-routine_start(mrb_state* mrb, mrb_value self)
+Thread_start(mrb_state* mrb, mrb_value self)
 {
-  Routine* r = static_cast<Routine*>(DATA_PTR(self));
+  Thread* r = static_cast<Thread*>(DATA_PTR(self));
 
   if (r->is_running) return mrb_nil_value();
 
@@ -107,9 +106,9 @@ routine_start(mrb_state* mrb, mrb_value self)
 }
 
 static mrb_value
-routine_get_error(mrb_state* mrb, mrb_value self)
+Thread_get_error(mrb_state* mrb, mrb_value self)
 {
-  Routine* r = static_cast<Routine*>(DATA_PTR(self));
+  Thread* r = static_cast<Thread*>(DATA_PTR(self));
   if (r->got_error)
     return r->error.to_mruby(mrb);
   else
@@ -117,17 +116,17 @@ routine_get_error(mrb_state* mrb, mrb_value self)
 }
 
 static mrb_value
-routine_join(mrb_state* mrb, mrb_value self)
+Thread_join(mrb_state* mrb, mrb_value self)
 {
-  Routine* r = static_cast<Routine*>(DATA_PTR(self));
+  Thread* r = static_cast<Thread*>(DATA_PTR(self));
   r->join();
   return mrb_nil_value();
 }
 
 static mrb_value
-routine_is_running(mrb_state* mrb, mrb_value self)
+Thread_is_running(mrb_state* mrb, mrb_value self)
 {
-  bool is_running = static_cast<Routine*>(DATA_PTR(self))->is_running;
+  bool is_running = static_cast<Thread*>(DATA_PTR(self))->is_running;
   return mrb_bool_value(is_running);
 }
 
@@ -238,21 +237,21 @@ mrb_mruby_channel_gem_init(mrb_state* mrb)
 {
   struct RClass* cls;
 
-  cls = mrb_define_class(mrb, "Routine", mrb->object_class);
+  cls = mrb_define_class(mrb, "Thread", mrb->object_class);
 
-  mrb_define_method(mrb, cls, "initialize", routine_init, MRB_ARGS_REQ(1));
-  mrb_define_method(mrb, cls, "start", routine_start, MRB_ARGS_NONE());
-  mrb_define_method(mrb, cls, "get_error", routine_get_error, MRB_ARGS_NONE());
-  mrb_define_method(mrb, cls, "join", routine_join, MRB_ARGS_NONE());
-  mrb_define_method(mrb, cls, "running?", routine_is_running, MRB_ARGS_NONE());
+  mrb_define_method(mrb, cls, "initialize", Thread_init, MRB_ARGS_REQ(1));
+  mrb_define_method(mrb, cls, "start", Thread_start, MRB_ARGS_NONE());
+  mrb_define_method(mrb, cls, "get_error", Thread_get_error, MRB_ARGS_NONE());
+  mrb_define_method(mrb, cls, "join", Thread_join, MRB_ARGS_NONE());
+  mrb_define_method(mrb, cls, "running?", Thread_is_running, MRB_ARGS_NONE());
 
   cls = mrb_define_class(mrb, "Channel", mrb->object_class);
 
   mrb_define_class_method(mrb, cls, "get", chan_get, MRB_ARGS_REQ(1));
 
-  mrb_define_method(mrb, cls, "send", chan_send, MRB_ARGS_REQ(1));
-  mrb_define_method(mrb, cls, "try_recv", chan_try_recv, MRB_ARGS_NONE() | MRB_ARGS_BLOCK());
-  mrb_define_method(mrb, cls, "recv", chan_recv, MRB_ARGS_NONE() | MRB_ARGS_BLOCK());
+  mrb_define_method(mrb, cls, "push", chan_send, MRB_ARGS_REQ(1));
+  mrb_define_method(mrb, cls, "try_pop", chan_try_recv, MRB_ARGS_NONE() | MRB_ARGS_BLOCK());
+  mrb_define_method(mrb, cls, "pop", chan_recv, MRB_ARGS_NONE() | MRB_ARGS_BLOCK());
   mrb_define_method(mrb, cls, "close", chan_close, MRB_ARGS_NONE());
 
 }

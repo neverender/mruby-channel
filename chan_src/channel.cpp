@@ -42,7 +42,7 @@ void Channel::release()
   }
 }
 
-bool Channel::send(Variant& val)
+bool Channel::push(Variant& val)
 {
   std::lock_guard<std::mutex> lk(this->mtx);
 
@@ -53,7 +53,7 @@ bool Channel::send(Variant& val)
   return true;
 }
 
-bool Channel::try_receive(Variant* ret)
+bool Channel::try_pop(Variant* ret)
 {
   std::lock_guard<std::mutex> lk(this->mtx);
 
@@ -64,7 +64,7 @@ bool Channel::try_receive(Variant* ret)
   return true;
 }
 
-bool Channel::receive(Variant* ret)
+bool Channel::pop(Variant* ret)
 {
   std::unique_lock<std::mutex> lk(this->mtx);
 

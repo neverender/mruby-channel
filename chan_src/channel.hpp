@@ -17,10 +17,10 @@ struct Channel {
   void add_ref();
   void release();
 
-  bool send(Variant& val);
+  bool push(Variant& val);
 
-  bool try_receive(Variant* ret);
-  bool receive(Variant* ret);
+  bool try_pop(Variant* ret);
+  bool pop(Variant* ret);
 
   void close();
 
