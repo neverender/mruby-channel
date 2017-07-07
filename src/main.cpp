@@ -55,17 +55,17 @@ struct Thread {
 };
 
 static void
-Thread_free(mrb_state* mrb, void* p)
+thread_free(mrb_state* mrb, void* p)
 {
   Thread* r = static_cast<Thread*>(p);
   r->~Thread();
   mrb_free(mrb, p);
 }
 
-static mrb_data_type Thread_t = {"Thread", Thread_free};
+static mrb_data_type thread_t = {"Thread", thread_free};
 
 static mrb_value
-Thread_init(mrb_state* mrb, mrb_value self)
+thread_init(mrb_state* mrb, mrb_value self)
 {
   char* script;
 
@@ -74,14 +74,14 @@ Thread_init(mrb_state* mrb, mrb_value self)
   Thread* r = (Thread*)mrb_malloc(mrb, sizeof(Thread));
   r = new (r) Thread(script);
 
-  DATA_TYPE(self) = &Thread_t;
+  DATA_TYPE(self) = &thread_t;
   DATA_PTR(self) = r;
 
   return self;
 }
 
 static mrb_value
-Thread_start(mrb_state* mrb, mrb_value self)
+thread_start(mrb_state* mrb, mrb_value self)
 {
   Thread* r = static_cast<Thread*>(DATA_PTR(self));
 
@@ -106,7 +106,7 @@ Thread_start(mrb_state* mrb, mrb_value self)
 }
 
 static mrb_value
-Thread_get_error(mrb_state* mrb, mrb_value self)
+thread_get_error(mrb_state* mrb, mrb_value self)
 {
   Thread* r = static_cast<Thread*>(DATA_PTR(self));
   if (r->got_error)
@@ -116,7 +116,7 @@ Thread_get_error(mrb_state* mrb, mrb_value self)
 }
 
 static mrb_value
-Thread_join(mrb_state* mrb, mrb_value self)
+thread_join(mrb_state* mrb, mrb_value self)
 {
   Thread* r = static_cast<Thread*>(DATA_PTR(self));
   r->join();
@@ -124,7 +124,7 @@ Thread_join(mrb_state* mrb, mrb_value self)
 }
 
 static mrb_value
-Thread_is_running(mrb_state* mrb, mrb_value self)
+thread_is_running(mrb_state* mrb, mrb_value self)
 {
   bool is_running = static_cast<Thread*>(DATA_PTR(self))->is_running;
   return mrb_bool_value(is_running);
@@ -153,7 +153,7 @@ chan_get(mrb_state* mrb, mrb_value self)
 }
 
 static mrb_value
-chan_send(mrb_state* mrb, mrb_value self)
+chan_push(mrb_state* mrb, mrb_value self)
 {
   mrb_value obj;
 
@@ -163,13 +163,13 @@ chan_send(mrb_state* mrb, mrb_value self)
   if (v.type == Variant::Type::UNKNOWN) {
     mrb_raisef(mrb, E_TYPE_ERROR, "unknown type: %S", obj);
   }
-  static_cast<Channel*>(DATA_PTR(self))->send(v);
+  static_cast<Channel*>(DATA_PTR(self))->push(v);
 
   return mrb_nil_value();
 }
 
 static mrb_value
-chan_try_recv(mrb_state* mrb, mrb_value self)
+chan_try_pop(mrb_state* mrb, mrb_value self)
 {
   mrb_value blk;
 
@@ -178,7 +178,7 @@ chan_try_recv(mrb_state* mrb, mrb_value self)
   Variant v;
   Channel* chan = static_cast<Channel*>(DATA_PTR(self));
 
-  if (chan->try_receive(&v)) {
+  if (chan->try_pop(&v)) {
     if (v.type == Variant::Type::CLOSE) {
       chan->close();
       return mrb_false_value();
@@ -195,7 +195,7 @@ chan_try_recv(mrb_state* mrb, mrb_value self)
 }
 
 static mrb_value
-chan_recv(mrb_state* mrb, mrb_value self)
+chan_pop(mrb_state* mrb, mrb_value self)
 {
   mrb_value blk;
 
@@ -204,7 +204,7 @@ chan_recv(mrb_state* mrb, mrb_value self)
   Variant v;
   Channel* chan = static_cast<Channel*>(DATA_PTR(self));
 
-  if (chan->receive(&v)) {
+  if (chan->pop(&v)) {
     if (v.type == Variant::Type::CLOSE) {
       chan->close();
       return mrb_false_value();
@@ -226,7 +226,7 @@ chan_close(mrb_state* mrb, mrb_value self)
   Variant v;
   v.type = Variant::Type::CLOSE;
   Channel* chan = static_cast<Channel*>(DATA_PTR(self));
-  chan->send(v);
+  chan->push(v);
   return mrb_nil_value();
 }
 
@@ -239,19 +239,19 @@ mrb_mruby_channel_gem_init(mrb_state* mrb)
 
   cls = mrb_define_class(mrb, "Thread", mrb->object_class);
 
-  mrb_define_method(mrb, cls, "initialize", Thread_init, MRB_ARGS_REQ(1));
-  mrb_define_method(mrb, cls, "start", Thread_start, MRB_ARGS_NONE());
-  mrb_define_method(mrb, cls, "get_error", Thread_get_error, MRB_ARGS_NONE());
-  mrb_define_method(mrb, cls, "join", Thread_join, MRB_ARGS_NONE());
-  mrb_define_method(mrb, cls, "running?", Thread_is_running, MRB_ARGS_NONE());
+  mrb_define_method(mrb, cls, "initialize", thread_init, MRB_ARGS_REQ(1));
+  mrb_define_method(mrb, cls, "start", thread_start, MRB_ARGS_NONE());
+  mrb_define_method(mrb, cls, "get_error", thread_get_error, MRB_ARGS_NONE());
+  mrb_define_method(mrb, cls, "join", thread_join, MRB_ARGS_NONE());
+  mrb_define_method(mrb, cls, "running?", thread_is_running, MRB_ARGS_NONE());
 
   cls = mrb_define_class(mrb, "Channel", mrb->object_class);
 
   mrb_define_class_method(mrb, cls, "get", chan_get, MRB_ARGS_REQ(1));
 
-  mrb_define_method(mrb, cls, "push", chan_send, MRB_ARGS_REQ(1));
-  mrb_define_method(mrb, cls, "try_pop", chan_try_recv, MRB_ARGS_NONE() | MRB_ARGS_BLOCK());
-  mrb_define_method(mrb, cls, "pop", chan_recv, MRB_ARGS_NONE() | MRB_ARGS_BLOCK());
+  mrb_define_method(mrb, cls, "push", chan_push, MRB_ARGS_REQ(1));
+  mrb_define_method(mrb, cls, "try_pop", chan_try_pop, MRB_ARGS_NONE() | MRB_ARGS_BLOCK());
+  mrb_define_method(mrb, cls, "pop", chan_pop, MRB_ARGS_NONE() | MRB_ARGS_BLOCK());
   mrb_define_method(mrb, cls, "close", chan_close, MRB_ARGS_NONE());
 
 }
